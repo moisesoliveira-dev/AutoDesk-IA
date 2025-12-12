@@ -1,0 +1,5 @@
+{
+  "name": "AutoDesk AI",
+  "description": "Sistema de gestão de chamados que utiliza IA para classificação automática de setor, atribuição de responsável e respostas sugeridas baseadas em base de conhecimento.",
+  "requestFramePermissions": []
+}
