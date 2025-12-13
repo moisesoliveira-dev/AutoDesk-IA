@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { KnowledgeBaseItem, Ticket, User, Sector } from '../../types';
 import KBForm from '../../components/kb/KBForm';
 import KBItem from '../../components/kb/KBItem';
+import ReviewModal from '../../components/kb/ReviewModal';
+import Pagination from '../../components/common/Pagination';
 
 interface KBPageProps {
   items: KnowledgeBaseItem[];
@@ -26,16 +28,20 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
+const ITEMS_PER_PAGE = 6;
+
 const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, availableSectors }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingItem, setEditingItem] = useState<KnowledgeBaseItem | null>(null);
+  const [reviewItem, setReviewItem] = useState<KnowledgeBaseItem | null>(null);
   const [activeSector, setActiveSector] = useState<Sector | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const handleSubmit = (itemData: Omit<KnowledgeBaseItem, 'id'>) => {
     if (editingItem) {
       const updatedItems = items.map(item => 
-        item.id === editingItem.id ? { ...item, ...itemData } : item
+        item.id === editingItem.id ? { ...item, ...itemData, reviewRequested: false, reviewNote: undefined } : item
       );
       onUpdateKb(updatedItems);
       setEditingItem(null);
@@ -45,7 +51,6 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
         ...itemData
       };
       onUpdateKb([newItem, ...items]);
-      // Se não estivermos buscando, vamos para a pasta do novo item
       if (!searchTerm) {
         setActiveSector(newItem.sector);
       }
@@ -73,6 +78,43 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
     onUpdateKb(updated);
   };
 
+  // Abre o modal
+  const openReviewModal = (item: KnowledgeBaseItem) => {
+    if (user.role === 'ADMIN' && item.reviewRequested) {
+        handleReviewSubmit(item.id, '', item.content, false); // Valida e limpa
+    } else {
+        setReviewItem(item);
+    }
+  };
+
+  // Callback do Modal
+  const handleReviewSubmit = (id: string, note: string, updatedContent: string, isRequest = true) => {
+    const updated = items.map(item => {
+      if (item.id === id) {
+        const contentChanged = item.content !== updatedContent;
+        if (!isRequest) {
+            return { 
+                ...item, 
+                reviewRequested: false, 
+                reviewNote: undefined, 
+                content: updatedContent,
+                approved: true 
+            };
+        }
+        return { 
+            ...item, 
+            content: updatedContent,
+            reviewRequested: true,
+            reviewNote: note,
+            approved: contentChanged ? false : item.approved 
+        };
+      }
+      return item;
+    });
+    onUpdateKb(updated);
+    setReviewItem(null);
+  };
+
   const handleCancelForm = () => {
     setIsAdding(false);
     setEditingItem(null);
@@ -83,12 +125,8 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
     acc[s] = (acc[s] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-
-  // Lógica de Display:
-  // 1. Se estiver buscando, ignora pastas e mostra lista filtrada global
-  // 2. Se não, se tiver setor ativo, mostra lista do setor
-  // 3. Se não, mostra pastas
   
+  // Logic to determine displayed items
   let displayedItems: KnowledgeBaseItem[] = [];
   
   if (searchTerm) {
@@ -101,6 +139,18 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
   } else if (activeSector) {
     displayedItems = items.filter(item => item.sector === activeSector);
   }
+
+  // Reset page logic
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeSector]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(displayedItems.length / ITEMS_PER_PAGE);
+  const currentItems = displayedItems.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div>
@@ -133,7 +183,6 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
         </div>
 
         <div className="flex gap-2 w-full md:w-auto">
-             {/* Search Bar */}
              {!isAdding && (
                 <div className="relative flex-1 md:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -171,6 +220,15 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
       </div>
 
       <AnimatePresence mode="wait">
+        {/* Modal de Revisão */}
+        {reviewItem && (
+            <ReviewModal 
+                item={reviewItem} 
+                onClose={() => setReviewItem(null)} 
+                onSubmit={(id, note, content) => handleReviewSubmit(id, note, content, true)} 
+            />
+        )}
+
         {isAdding && (
           <motion.div
             key="form"
@@ -190,7 +248,6 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
           </motion.div>
         )}
 
-        {/* View: FOLDERS (Sem busca, sem adição, sem setor ativo) */}
         {!isAdding && !activeSector && !searchTerm && (
           <motion.div 
             key="folders"
@@ -222,14 +279,13 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
           </motion.div>
         )}
 
-        {/* View: LIST (Tem busca OU Tem Setor Ativo) */}
         {(activeSector || searchTerm) && !isAdding && (
           <motion.div 
             key="list"
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 50 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            className="space-y-4"
           >
             {displayedItems.length === 0 ? (
               <div className="col-span-full text-center p-12 bg-white rounded-xl border border-dashed border-gray-300">
@@ -249,22 +305,41 @@ const KBPage: React.FC<KBPageProps> = ({ items, onUpdateKb, user, tickets, avail
                 )}
               </div>
             ) : (
-              displayedItems.map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <KBItem 
-                    item={item} 
-                    user={user} 
-                    onToggleApproval={toggleApproval}
-                    onEdit={handleEditClick}
-                    onDelete={handleDelete}
-                  />
-                </motion.div>
-              ))
+              <>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {currentItems.map((item, index) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <KBItem 
+                          item={item} 
+                          user={user} 
+                          onToggleApproval={toggleApproval}
+                          onEdit={handleEditClick}
+                          onDelete={handleDelete}
+                          onRequestReview={(i) => {
+                              if (user.role === 'ADMIN' && i.reviewRequested) {
+                                  handleReviewSubmit(i.id, '', i.content, false);
+                              } else {
+                                  openReviewModal(i);
+                              }
+                          }}
+                        />
+                      </motion.div>
+                    ))}
+                 </div>
+                 
+                 <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={displayedItems.length}
+                    itemsName="artigos"
+                    onPageChange={setCurrentPage}
+                 />
+              </>
             )}
           </motion.div>
         )}

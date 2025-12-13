@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Ticket, KnowledgeBaseItem, User, ReportSchedule } from './types';
+import { Ticket, KnowledgeBaseItem, User, ReportSchedule, Role } from './types';
 import { INITIAL_KB, INITIAL_TICKETS, MOCK_USERS, DEFAULT_SECTORS, DEFAULT_REPORT_SCHEDULES } from './constants';
 
 // Layout & Auth
@@ -9,6 +9,8 @@ import LoginScreen from './components/auth/LoginScreen';
 
 // Pages
 import DashboardPage from './app/dashboard/page';
+import MyTicketsPage from './app/my-tickets/page';
+import TicketsQueuePage from './app/tickets-queue/page'; 
 import TicketPage from './app/ticket/page';
 import NewTicketPage from './app/new/page';
 import KBPage from './app/kb/page';
@@ -18,12 +20,60 @@ import ReportsPage from './app/reports/page';
 import ReportSettingsPage from './app/report-settings/page';
 
 const App: React.FC = () => {
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  // Load users from localStorage to persist registrations
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('app_users');
+    return saved ? JSON.parse(saved) : MOCK_USERS;
+  });
+
+  const [allowedDomain, setAllowedDomain] = useState<string>(() => {
+    return localStorage.getItem('app_domain') || 'empresa.com';
+  });
+
   const [user, setUser] = useState<User | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>(INITIAL_TICKETS);
   const [kb, setKb] = useState<KnowledgeBaseItem[]>(INITIAL_KB);
   const [sectors, setSectors] = useState<string[]>(DEFAULT_SECTORS);
   const [reportSchedules, setReportSchedules] = useState<ReportSchedule[]>(DEFAULT_REPORT_SCHEDULES);
+
+  // Persist users and settings
+  useEffect(() => {
+    localStorage.setItem('app_users', JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem('app_domain', allowedDomain);
+  }, [allowedDomain]);
+
+  // Handlers
+  const handleRegister = (name: string, email: string, password: string, registrationNumber: string) => {
+    const newUser: User = {
+        id: Math.random().toString(36).substr(2, 9),
+        name,
+        email,
+        registrationNumber,
+        password,
+        role: 'REQUESTER',
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+        approved: false // Requires admin approval
+    };
+    setUsers(prev => [...prev, newUser]);
+  };
+
+  const handleUpdateUserRole = (userId: string, newRole: Role) => {
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    if (user && user.id === userId) {
+      setUser(prev => prev ? { ...prev, role: newRole } : null);
+    }
+  };
+
+  const handleApproveUser = (userId: string, role: Role) => {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role, approved: true } : u));
+  };
+
+  const handleDeleteUser = (userId: string) => {
+      setUsers(prev => prev.filter(u => u.id !== userId));
+  };
 
   const handleUpdateTicket = (updatedTicket: Ticket) => {
     setTickets(prev => prev.map(t => t.id === updatedTicket.id ? updatedTicket : t));
@@ -35,13 +85,6 @@ const App: React.FC = () => {
 
   const handleUpdateKb = (newKb: KnowledgeBaseItem[]) => {
     setKb(newKb);
-  };
-
-  const handleUpdateUserRole = (userId: string, newRole: User['role']) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
-    if (user && user.id === userId) {
-      setUser(prev => prev ? { ...prev, role: newRole } : null);
-    }
   };
 
   const handleAddSector = (newSector: string) => {
@@ -59,14 +102,47 @@ const App: React.FC = () => {
   };
 
   if (!user) {
-    return <LoginScreen users={users} onLogin={setUser} />;
+    return (
+      <LoginScreen 
+        users={users} 
+        allowedDomain={allowedDomain}
+        onLogin={setUser} 
+        onRegister={handleRegister} 
+      />
+    );
   }
 
   return (
     <HashRouter>
       <AppLayout user={user} onLogout={() => setUser(null)}>
         <Routes>
-          <Route path="/" element={<DashboardPage tickets={tickets} user={user} />} />
+          <Route 
+            path="/" 
+            element={
+              user.role === 'REQUESTER' ? (
+                <Navigate to="/my-tickets" />
+              ) : (
+                <DashboardPage tickets={tickets} />
+              )
+            } 
+          />
+
+          <Route 
+            path="/my-tickets" 
+            element={<MyTicketsPage tickets={tickets} user={user} />} 
+          />
+
+          <Route 
+            path="/queue" 
+            element={
+              (user.role === 'ADMIN' || user.role === 'SUPPORT') ? (
+                <TicketsQueuePage tickets={tickets} availableSectors={sectors} />
+              ) : (
+                <Navigate to="/" />
+              )
+            } 
+          />
+
           <Route 
             path="/ticket/:id" 
             element={
@@ -113,7 +189,11 @@ const App: React.FC = () => {
                 <UsersPage 
                   users={users} 
                   currentUser={user}
-                  onUpdateRole={handleUpdateUserRole} 
+                  allowedDomain={allowedDomain}
+                  onUpdateAllowedDomain={setAllowedDomain}
+                  onUpdateRole={handleUpdateUserRole}
+                  onApproveUser={handleApproveUser}
+                  onDeleteUser={handleDeleteUser}
                 />
               )
             } 

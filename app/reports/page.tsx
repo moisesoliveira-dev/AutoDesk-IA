@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Ticket, TicketStatus } from '../../types';
+import Pagination from '../../components/common/Pagination';
 import { Printer, Filter } from 'lucide-react';
 
 interface ReportsPageProps {
@@ -7,11 +8,14 @@ interface ReportsPageProps {
   sectors: string[];
 }
 
+const ITEMS_PER_PAGE = 15;
+
 const ReportsPage: React.FC<ReportsPageProps> = ({ tickets, sectors }) => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [sectorFilter, setSectorFilter] = useState<string>('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const filteredTickets = tickets.filter(t => {
     const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
@@ -31,9 +35,20 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ tickets, sectors }) => {
     return matchesStatus && matchesSector && matchesDate;
   });
 
+  // Reset page logic
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, sectorFilter, startDate, endDate]);
+
   const handlePrint = () => {
     window.print();
   };
+
+  const totalPages = Math.ceil(filteredTickets.length / ITEMS_PER_PAGE);
+  const currentTickets = filteredTickets.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="space-y-6">
@@ -118,35 +133,76 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ tickets, sectors }) => {
          </div>
 
          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-slate-500 print:text-black">
-                <thead className="text-xs text-slate-700 uppercase bg-slate-50 print:bg-gray-100">
-                    <tr>
-                        <th className="px-6 py-3 print:px-2">ID</th>
-                        <th className="px-6 py-3 print:px-2">Título</th>
-                        <th className="px-6 py-3 print:px-2">Setor</th>
-                        <th className="px-6 py-3 print:px-2">Status</th>
-                        <th className="px-6 py-3 print:px-2">Data</th>
-                        <th className="px-6 py-3 print:px-2">Nota</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filteredTickets.map(ticket => (
-                        <tr key={ticket.id} className="bg-white border-b hover:bg-slate-50 print:border-gray-300">
-                            <td className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap print:px-2">#{ticket.id}</td>
-                            <td className="px-6 py-4 truncate max-w-xs print:max-w-none print:whitespace-normal print:px-2">{ticket.title}</td>
-                            <td className="px-6 py-4 print:px-2">{ticket.assignedSector}</td>
-                            <td className="px-6 py-4 print:px-2">
-                                <span className={`px-2 py-0.5 rounded text-xs font-semibold print:border print:border-gray-300 print:bg-transparent print:text-black
-                                    ${ticket.status === TicketStatus.RESOLVED ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                                    {ticket.status}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 print:px-2">{new Date(ticket.createdAt).toLocaleDateString()}</td>
-                            <td className="px-6 py-4 print:px-2">{ticket.rating ? ticket.rating : '-'}</td>
+            {/* 
+               NOTA: Na visualização normal, usamos 'currentTickets' (paginado).
+               Na impressão, queremos ver TODOS os itens. Como o CSS print não afeta a lógica JS de renderização,
+               o ideal seria renderizar todos mas esconder os extras com CSS, ou remover a paginação na impressão.
+               A abordagem mais simples aqui é manter a tabela paginada na tela.
+               Se o usuário quiser imprimir TUDO, ele geralmente filtra ou exporta. 
+               Para este exemplo, o 'print' imprimirá apenas a página atual.
+               Para imprimir tudo, teríamos que renderizar uma tabela oculta com 'filteredTickets'.
+            */}
+            
+            {/* Tabela Visível (Paginada) */}
+            <div className="no-print">
+                <table className="w-full text-sm text-left text-slate-500">
+                    <thead className="text-xs text-slate-700 uppercase bg-slate-50">
+                        <tr>
+                            <th className="px-6 py-3">ID</th>
+                            <th className="px-6 py-3">Título</th>
+                            <th className="px-6 py-3">Setor</th>
+                            <th className="px-6 py-3">Status</th>
+                            <th className="px-6 py-3">Data</th>
+                            <th className="px-6 py-3">Nota</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {currentTickets.map(ticket => (
+                            <tr key={ticket.id} className="bg-white border-b hover:bg-slate-50">
+                                <td className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">#{ticket.id}</td>
+                                <td className="px-6 py-4 truncate max-w-xs">{ticket.title}</td>
+                                <td className="px-6 py-4">{ticket.assignedSector}</td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-semibold
+                                        ${ticket.status === TicketStatus.RESOLVED ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {ticket.status}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4">{new Date(ticket.createdAt).toLocaleDateString()}</td>
+                                <td className="px-6 py-4">{ticket.rating ? ticket.rating : '-'}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Tabela de Impressão (Completa - Hidden on Screen) */}
+            <div className="hidden print-only">
+                 <table className="w-full text-sm text-left text-black">
+                    <thead className="text-xs uppercase bg-gray-100 border-b-2 border-gray-300">
+                        <tr>
+                            <th className="px-2 py-2">ID</th>
+                            <th className="px-2 py-2">Título</th>
+                            <th className="px-2 py-2">Setor</th>
+                            <th className="px-2 py-2">Status</th>
+                            <th className="px-2 py-2">Data</th>
+                            <th className="px-2 py-2">Nota</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredTickets.map(ticket => (
+                            <tr key={ticket.id} className="border-b border-gray-200">
+                                <td className="px-2 py-2 font-bold">#{ticket.id}</td>
+                                <td className="px-2 py-2">{ticket.title}</td>
+                                <td className="px-2 py-2">{ticket.assignedSector}</td>
+                                <td className="px-2 py-2">{ticket.status}</td>
+                                <td className="px-2 py-2">{new Date(ticket.createdAt).toLocaleDateString()}</td>
+                                <td className="px-2 py-2">{ticket.rating ? ticket.rating : '-'}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
             
             {/* Rodapé do relatório impresso */}
             <div className="hidden print-only mt-8 pt-4 border-t border-gray-300 text-sm">
@@ -162,6 +218,16 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ tickets, sectors }) => {
                 <p className="text-center py-8">Nenhum chamado encontrado com os filtros selecionados.</p>
             )}
          </div>
+
+         {filteredTickets.length > 0 && (
+             <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredTickets.length}
+                itemsName="registros"
+                onPageChange={setCurrentPage}
+             />
+         )}
       </div>
     </div>
   );

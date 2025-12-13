@@ -21,9 +21,13 @@ export type Role = 'REQUESTER' | 'SUPPORT' | 'ADMIN';
 export interface User {
   id: string;
   name: string;
+  email: string;
+  registrationNumber: string; // Novo: Matrícula
+  password?: string;
   role: Role;
   sector?: Sector;
   avatar: string;
+  approved: boolean;
 }
 
 export interface Message {
@@ -52,6 +56,8 @@ export interface KnowledgeBaseItem {
   sector: Sector;
   approved: boolean;
   authorId: string;
+  reviewRequested?: boolean; // Novo: Indica se um atendente pediu revisão
+  reviewNote?: string; // Novo: Comentário do atendente sobre a revisão
 }
 
 export interface AITicketAnalysis {

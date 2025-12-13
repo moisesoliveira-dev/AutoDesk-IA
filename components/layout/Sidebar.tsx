@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, Book, LogOut, Bot, X, Users, History, Layers, FileBarChart, Mails } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Book, LogOut, Bot, X, Users, History, Layers, FileBarChart, Mails, Inbox } from 'lucide-react';
 import { User } from '../../types';
 
 interface SidebarProps {
@@ -12,12 +12,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ user, isOpen, onClose, onLogout }) => {
   const location = useLocation();
-
   const isActive = (path: string) => location.pathname === path;
-
-  // Renderização condicional do label do link principal
-  const homeLabel = user.role === 'REQUESTER' ? 'Meus Chamados' : 'Dashboard';
-  const HomeIcon = user.role === 'REQUESTER' ? History : LayoutDashboard;
 
   return (
     <aside className={`
@@ -47,16 +42,46 @@ const Sidebar: React.FC<SidebarProps> = ({ user, isOpen, onClose, onLogout }) =>
       </div>
 
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        <Link
-          to="/"
-          onClick={onClose}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-            isActive('/') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-          }`}
-        >
-          <HomeIcon size={20} />
-          <span className="font-medium">{homeLabel}</span>
-        </Link>
+        
+        {/* Menu para Admin/Suporte */}
+        {(user.role === 'ADMIN' || user.role === 'SUPPORT') && (
+          <>
+            <Link
+              to="/"
+              onClick={onClose}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive('/') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <LayoutDashboard size={20} />
+              <span className="font-medium">Dashboard</span>
+            </Link>
+            <Link
+              to="/queue"
+              onClick={onClose}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive('/queue') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Inbox size={20} />
+              <span className="font-medium">Fila de Atendimento</span>
+            </Link>
+          </>
+        )}
+
+        {/* Menu para Solicitante */}
+        {user.role === 'REQUESTER' && (
+          <Link
+            to="/my-tickets"
+            onClick={onClose}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              isActive('/my-tickets') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <History size={20} />
+            <span className="font-medium">Meus Chamados</span>
+          </Link>
+        )}
         
         <Link
           to="/new"

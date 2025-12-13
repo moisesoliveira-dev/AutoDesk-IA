@@ -1,5 +1,8 @@
 import { Agent, KnowledgeBaseItem, Ticket, TicketStatus, Priority, User, Role, ReportSchedule } from './types';
 
+// ID do Administrador Mestre (Não pode ser deletado)
+export const MASTER_ADMIN_ID = 'u3';
+
 // Setores Padrão Iniciais
 export const DEFAULT_SECTORS = [
   'TI e Suporte',
@@ -41,26 +44,38 @@ export const DEFAULT_REPORT_SCHEDULES: ReportSchedule[] = [
   }
 ];
 
-// Usuários do Sistema para Login
+// Usuários do Sistema para Login (Agora com email/senha e aprovados)
 export const MOCK_USERS: User[] = [
   {
     id: 'u1',
     name: 'João Solicitante',
+    email: 'joao@empresa.com',
+    registrationNumber: '1001',
+    password: '123',
     role: 'REQUESTER',
-    avatar: 'https://ui-avatars.com/api/?name=Joao+S&background=random'
+    avatar: 'https://ui-avatars.com/api/?name=Joao+S&background=random',
+    approved: true
   },
   {
     id: 'u2',
     name: 'Carlos Suporte (TI)',
+    email: 'carlos@empresa.com',
+    registrationNumber: '2002',
+    password: '123',
     role: 'SUPPORT',
     sector: 'TI e Suporte',
-    avatar: 'https://ui-avatars.com/api/?name=Carlos+S&background=0D8ABC&color=fff'
+    avatar: 'https://ui-avatars.com/api/?name=Carlos+S&background=0D8ABC&color=fff',
+    approved: true
   },
   {
-    id: 'u3',
+    id: MASTER_ADMIN_ID,
     name: 'Ana Admin',
+    email: 'admin@empresa.com',
+    registrationNumber: '0001',
+    password: 'admin',
     role: 'ADMIN',
-    avatar: 'https://ui-avatars.com/api/?name=Ana+A&background=2e2e2e&color=fff'
+    avatar: 'https://ui-avatars.com/api/?name=Ana+A&background=2e2e2e&color=fff',
+    approved: true
   }
 ];
 
